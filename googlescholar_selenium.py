@@ -6,6 +6,9 @@ from email.mime.multipart import MIMEMultipart
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 from datetime import datetime
 import time
 
@@ -54,7 +57,8 @@ def fetch_scholar_data_selenium():
     all_articles = []
     
     try:
-        driver = webdriver.Chrome(options=chrome_options)
+        service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         start_index = 0
         page_num = 1
         
@@ -117,82 +121,4 @@ def fetch_scholar_data_selenium():
                 print(f"페이지 파싱 오류: {e}")
                 break
         
-        driver.quit()
-        
-    except Exception as e:
-        print(f"브라우저 오류: {e}")
-    
-    print(f"총 수집 건수: {len(all_articles)}건")
-    
-    unique_articles = []
-    seen_links = set()
-    for article in all_articles:
-        if article["link"] not in seen_links and article["link"] != "No Link":
-            unique_articles.append(article)
-            seen_links.add(article["link"])
-    
-    if len(all_articles) != len(unique_articles):
-        print(f"중복 제거: {len(all_articles) - len(unique_articles)}건")
-    
-    return unique_articles
-
-def filter_new_articles(all_articles, sent_urls):
-    """이미 발송한 논문 제외하고 신규만 필터링"""
-    new_articles = []
-    for article in all_articles:
-        if article["link"] not in sent_urls:
-            new_articles.append(article)
-    return new_articles
-
-def send_report(articles):
-    """메일 발송"""
-    msg = MIMEMultipart()
-    msg['From'] = TARGET_EMAIL
-    msg['To'] = TARGET_EMAIL
-    
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    count = len(articles)
-    msg['Subject'] = f"[Scholar-Selenium] {date_str} 신규 논문 알림 ({count}건)"
-    
-    if articles:
-        body_parts = []
-        for item in articles:
-            part = f"[ {item['date']} ]\n{item['title']}\n{item['info']}\n{item['link']}"
-            body_parts.append(part)
-        
-        body = "\n\n".join(body_parts)
-    else:
-        body = "신규 논문이 없습니다."
-    
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(TARGET_EMAIL, GMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print(f"메일 발송 완료: {count}건")
-        return True
-    except Exception as e:
-        print(f"메일 발송 실패: {e}")
-        return False
-
-if __name__ == "__main__":
-    if not GMAIL_PASSWORD:
-        print("환경변수 설정 필요: GMAIL_PASSWORD")
-        exit(1)
-    
-    sent_history = load_sent_history()
-    print(f"기존 이력: {len(sent_history)}건")
-    
-    all_articles = fetch_scholar_data_selenium()
-    print(f"검색 결과: {len(all_articles)}건")
-    
-    new_articles = filter_new_articles(all_articles, sent_history)
-    print(f"신규 논문: {len(new_articles)}건")
-    
-    if send_report(new_articles):
-        new_urls = [article["link"] for article in new_articles]
-        save_sent_history(new_urls)
-        print("이력 업데이트 완료")
+        driver.qu
