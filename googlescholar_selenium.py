@@ -6,8 +6,6 @@ from email.mime.multipart import MIMEMultipart
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
 import time
 
@@ -45,9 +43,8 @@ def extract_date_info(text):
 def fetch_scholar_data_selenium():
     """Selenium으로 Google Scholar 전체 수집"""
     
-    # Chrome 옵션 설정
     chrome_options = Options()
-    chrome_options.add_argument('--headless')  # 백그라운드 실행
+    chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
@@ -67,10 +64,8 @@ def fetch_scholar_data_selenium():
             print(f"Page {page_num} 접속 중... (start={start_index})")
             driver.get(url)
             
-            # 페이지 로딩 대기
             time.sleep(3)
             
-            # 결과 찾기
             try:
                 results = driver.find_elements(By.CLASS_NAME, 'gs_ri')
                 
@@ -82,7 +77,6 @@ def fetch_scholar_data_selenium():
                 
                 for result in results:
                     try:
-                        # 제목과 링크
                         title_elem = result.find_element(By.CLASS_NAME, 'gs_rt')
                         title = title_elem.text.strip()
                         
@@ -92,14 +86,12 @@ def fetch_scholar_data_selenium():
                         except:
                             link = "No Link"
                         
-                        # 저자/저널 정보
                         try:
                             info_elem = result.find_element(By.CLASS_NAME, 'gs_a')
                             info = info_elem.text.strip()
                         except:
                             info = "정보 없음"
                         
-                        # 날짜 추출
                         date_str = extract_date_info(info)
                         
                         all_articles.append({
@@ -113,15 +105,13 @@ def fetch_scholar_data_selenium():
                         print(f"개별 결과 파싱 오류: {e}")
                         continue
                 
-                # 결과가 10개 미만이면 마지막 페이지
                 if len(results) < 10:
                     print("마지막 페이지 도달")
                     break
                 
-                # 다음 페이지로
                 start_index += 10
                 page_num += 1
-                time.sleep(2)  # 페이지 간 대기
+                time.sleep(2)
                 
             except Exception as e:
                 print(f"페이지 파싱 오류: {e}")
@@ -134,7 +124,6 @@ def fetch_scholar_data_selenium():
     
     print(f"총 수집 건수: {len(all_articles)}건")
     
-    # 중복 제거
     unique_articles = []
     seen_links = set()
     for article in all_articles:
@@ -163,7 +152,7 @@ def send_report(articles):
     
     date_str = datetime.now().strftime("%Y-%m-%d")
     count = len(articles)
-    msg['Subject'] = f"[Scholar] {date_str} 신규 논문 알림 ({count}건)"
+    msg['Subject'] = f"[Scholar-Selenium] {date_str} 신규 논문 알림 ({count}건)"
     
     if articles:
         body_parts = []
