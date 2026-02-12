@@ -1,0 +1,9 @@
+    - name: Install Chrome and ChromeDriver
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser chromium-chromedriver
+        sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
