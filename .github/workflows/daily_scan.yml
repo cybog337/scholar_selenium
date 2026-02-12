@@ -1,9 +1,47 @@
+name: Scholar Selenium Scan
+
+on:
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-search:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
     - name: Install Chrome and ChromeDriver
       run: |
         sudo apt-get update
         sudo apt-get install -y chromium-browser chromium-chromedriver
         sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
-    
+
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
+      
+    - name: Run Scholar Selenium Bot
+      env:
+        GMAIL_PASSWORD: ${{ secrets.MY_PASSWORD }}
+      run: python googlescholar_selenium.py
+    
+    - name: Commit and push history file
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add sent_list_scholar.txt
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update history [skip ci]"
+        git push
