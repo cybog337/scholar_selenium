@@ -52,6 +52,7 @@ def fetch_scholar_data_selenium():
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--window-size=1920,1080')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     all_articles = []
@@ -59,6 +60,13 @@ def fetch_scholar_data_selenium():
     try:
         service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
+        
+        # WebDriver 속성 숨기기
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+            "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
         start_index = 0
         page_num = 1
         
@@ -66,29 +74,69 @@ def fetch_scholar_data_selenium():
             url = f"https://scholar.google.com/scholar?q={SEARCH_QUERY}&hl=ko&as_sdt=0,5&as_ylo=2026&filter=0&start={start_index}"
             
             print(f"Page {page_num} 접속 중... (start={start_index})")
+            print(f"URL: {url}")
             driver.get(url)
-            time.sleep(3)
+            time.sleep(5)
+            
+            # 디버깅: 페이지 제목 확인
+            print(f"페이지 제목: {driver.title}")
+            
+            # 디버깅: 페이지 소스 일부 출력
+            page_source = driver.page_source
+            print(f"페이지 소스 길이: {len(page_source)} 글자")
+            print(f"페이지 소스 시작 500자: {page_source[:500]}")
+            
+            # CAPTCHA 체크
+            if "CAPTCHA" in page_source or "unusual traffic" in page_source:
+                print("⚠️ Google이 봇을 감지했습니다 (CAPTCHA)")
+                break
+            
+            # 스크린샷 저장 (디버깅용)
+            try:
+                screenshot_path = f'debug_page_{page_num}.png'
+                driver.save_screenshot(screenshot_path)
+                print(f"✅ 스크린샷 저장: {screenshot_path}")
+            except Exception as e:
+                print(f"스크린샷 저장 실패: {e}")
             
             try:
+                # 방법 1: gs_ri 클래스
                 results = driver.find_elements(By.CLASS_NAME, 'gs_ri')
+                print(f"gs_ri 클래스로 찾은 결과: {len(results)}개")
+                
+                # 방법 2: CSS 선택자
+                if not results:
+                    results = driver.find_elements(By.CSS_SELECTOR, 'div.gs_r')
+                    print(f"gs_r 클래스로 재시도: {len(results)}개")
+                
+                # 방법 3: XPath
+                if not results:
+                    results = driver.find_elements(By.XPATH, '//div[contains(@class, "gs_r")]')
+                    print(f"XPath로 재시도: {len(results)}개")
                 
                 if not results:
-                    print("더 이상 결과 없음")
+                    print("❌ 더 이상 결과 없음 - 모든 선택자 실패")
+                    # HTML 구조 확인
+                    print("\n=== HTML 구조 샘플 (처음 1000자) ===")
+                    print(page_source[:1000])
                     break
                 
-                print(f"Page {page_num}: {len(results)}건 수집")
+                print(f"✅ Page {page_num}: {len(results)}건 수집 시작")
                 
-                for result in results:
+                for idx, result in enumerate(results):
                     try:
+                        # 제목
                         title_elem = result.find_element(By.CLASS_NAME, 'gs_rt')
                         title = title_elem.text.strip()
                         
+                        # 링크
                         try:
                             link_elem = title_elem.find_element(By.TAG_NAME, 'a')
                             link = link_elem.get_attribute('href')
                         except:
                             link = "No Link"
                         
+                        # 저자/저널 정보
                         try:
                             info_elem = result.find_element(By.CLASS_NAME, 'gs_a')
                             info = info_elem.text.strip()
@@ -103,29 +151,36 @@ def fetch_scholar_data_selenium():
                             "info": info,
                             "date": date_str
                         })
+                        
+                        if idx == 0:
+                            print(f"  첫 번째 논문: {title[:50]}...")
                     
                     except Exception as e:
-                        print(f"개별 결과 파싱 오류: {e}")
+                        print(f"  개별 결과 #{idx} 파싱 오류: {e}")
                         continue
                 
                 if len(results) < 10:
-                    print("마지막 페이지 도달")
+                    print("마지막 페이지 도달 (결과 10개 미만)")
                     break
                 
                 start_index += 10
                 page_num += 1
-                time.sleep(2)
+                time.sleep(3)
                 
             except Exception as e:
-                print(f"페이지 파싱 오류: {e}")
+                print(f"❌ 페이지 파싱 오류: {e}")
+                import traceback
+                traceback.print_exc()
                 break
         
         driver.quit()
         
     except Exception as e:
-        print(f"브라우저 오류: {e}")
+        print(f"❌ 브라우저 오류: {e}")
+        import traceback
+        traceback.print_exc()
     
-    print(f"총 수집 건수: {len(all_articles)}건")
+    print(f"\n총 수집 건수: {len(all_articles)}건")
     
     unique_articles = []
     seen_links = set()
